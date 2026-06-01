@@ -1313,6 +1313,22 @@
     </div>
   </div>
 
+  <!-- 선착순 마감 모달 -->
+  <div class="modal-overlay" id="quota-modal-overlay" onclick="closeQuotaModal()">
+    <div class="modal-card" onclick="event.stopPropagation()" style="text-align:center;padding:40px 24px;">
+      <div style="font-size:48px;margin-bottom:16px;">🌙</div>
+      <p style="font-family:'Noto Serif KR',serif;font-size:22px;font-weight:900;color:var(--ink);margin-bottom:12px;letter-spacing:-0.5px;">오늘의 그 놈은<br>모두 소환됐어요</p>
+      <p style="font-size:14px;color:var(--muted);line-height:1.8;margin-bottom:24px;">하루 20명 선착순이 마감됐어요.<br>내일 자정이 지나면 다시 소환할 수 있어요.<br>내 팔자 속 그 놈이 기다리고 있을 거예요 🔥</p>
+      <button onclick="closeQuotaModal()" style="
+        width:100%;padding:16px;
+        background:var(--ink);color:#fff;
+        border:none;border-radius:var(--r-pill);
+        font-family:'Noto Serif KR',serif;
+        font-size:16px;font-weight:700;cursor:pointer;
+      ">내일 다시 올게요</button>
+    </div>
+  </div>
+
   <!-- 이미지 모달 -->
   <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
@@ -1457,7 +1473,40 @@ function stopLoadingMsg() {
 }
 
 // ── 메인 소환 ──
+// ── 선착순 카운트 (날짜별 리셋) ──
+const DAILY_LIMIT = 20;
+
+function getTodayKey() {
+  const d = new Date();
+  return 'quota_' + d.getFullYear() + '_' + (d.getMonth()+1) + '_' + d.getDate();
+}
+
+function getUsedCount() {
+  const key = getTodayKey();
+  return parseInt(localStorage.getItem(key) || '0');
+}
+
+function incrementCount() {
+  const key = getTodayKey();
+  const cur = getUsedCount();
+  localStorage.setItem(key, cur + 1);
+}
+
+function getRemainingCount() {
+  return Math.max(0, DAILY_LIMIT - getUsedCount());
+}
+
+function updateQuotaDisplay() {
+  // 버튼 누를 때만 팝업으로 알림 (표시 없음)
+}
+
 async function summon() {
+  // 선착순 체크
+  if (getRemainingCount() <= 0) {
+    showQuotaModal();
+    return;
+  }
+
   const birth = getBirthInfo();
   const gender = document.querySelector('input[name="gender"]:checked')?.value;
   const vibes = [...document.querySelectorAll('.chips input:checked')].map(e => e.value);
@@ -1489,6 +1538,10 @@ async function summon() {
     // 서버에서 사주 분석 + 이미지 생성 한 번에
     const result = await analyzeSaju(ilju, shiju, birth, gender, vibes, custom);
 
+    // 소환 성공 → 카운트 증가
+    incrementCount();
+    updateQuotaDisplay();
+
     // 결과 표시
     stopLoadingMsg();
     showResult(ilju, result.saju, result.imageUrl);
@@ -1501,35 +1554,116 @@ async function summon() {
   }
 }
 
-// ── 서버 API 호출 (키 숨김) ──
+// ── 60개 일주 데이터 (비용 0원, 순수 JS) ──
+const ILJU_DATA = {
+  '갑자': { title: '물 위에 뿌리 내린 큰 나무의 그 놈', desc: '겉은 단단하고 과묵한데 속은 따뜻해요. 말보다 행동으로 보여주는 타입. 한번 마음 열면 끝까지 지켜주는 그 놈이에요.' },
+  '갑인': { title: '숲의 왕, 기운만으로 압도하는 그 놈', desc: '카리스마가 넘쳐서 옆에만 있어도 안심이 돼요. 강한 척하지만 사랑하는 사람 앞에선 한없이 약해지는 스타일.' },
+  '갑진': { title: '용이 숨어있는 나무, 범상치 않은 그 놈', desc: '평범해 보이는데 알수록 대단한 사람이에요. 야망이 크고 뚝심이 있어서 결국 해내는 그런 남자.' },
+  '갑오': { title: '불꽃처럼 뜨겁고 빠른 그 놈', desc: '에너지가 폭발적이고 추진력이 남달라요. 지루할 틈이 없는 남자. 함께 있으면 인생이 드라마가 돼요.' },
+  '갑신': { title: '칼날 위에 선 나무, 예리한 그 놈', desc: '똑똑하고 날카로운데 의외로 유머가 있어요. 논리적으로 말하면서 상대방을 저절로 설득하는 타입.' },
+  '갑술': { title: '마른 산을 지키는 의리의 그 놈', desc: '한번 인연 맺으면 쉽게 놓지 않아요. 고집스럽지만 그 고집이 당신을 지키는 데 쓰이는 남자.' },
+  '을축': { title: '겨울 땅에 뿌리 내린, 조용히 강한 그 놈', desc: '말수 적고 묵묵한데 곁에 있으면 든든해요. 화려하진 않지만 절대 무너지지 않는 남자.' },
+  '을묘': { title: '봄바람 같은, 자꾸만 생각나는 그 놈', desc: '부드럽고 다정한데 은근히 고집이 세요. 처음엔 가볍게 봤다가 나중에 빠져들게 되는 스타일.' },
+  '을사': { title: '뱀과 나무, 신비롭고 집요한 그 놈', desc: '처음 만났을 때부터 범상치 않은 느낌이 와요. 한번 꽂히면 포기를 모르는 집요한 매력의 남자.' },
+  '을미': { title: '여름 풀밭, 따뜻하고 섬세한 그 놈', desc: '감수성이 풍부하고 상대방 마음을 잘 읽어요. 먼저 연락하고 먼저 챙겨주는 다정한 남자.' },
+  '을유': { title: '날카로운 칼 위의 꽃, 고혹적인 그 놈', desc: '예쁘장한 외모에 의외로 강한 멘탈이 있어요. 부드러워 보여도 자기 세계가 확실한 남자.' },
+  '을해': { title: '깊은 물 위의 나무, 자유로운 그 놈', desc: '틀에 얽매이지 않고 자기만의 길을 가요. 철학이 있고 낭만이 있어서 대화가 끝없이 이어지는 남자.' },
+  '병자': { title: '차가운 물 위의 태양, 역설적인 그 놈', desc: '겉은 차가워 보이는데 속은 뜨거워요. 선 긋는 것 같아도 당신한테만 무너지는 그 남자.' },
+  '병인': { title: '태양과 호랑이, 존재감 자체인 그 놈', desc: '방에 들어서는 순간 분위기가 달라져요. 리더십이 넘치고 에너지가 폭발적인 남자.' },
+  '병진': { title: '하늘 위의 태양, 스케일이 다른 그 놈', desc: '꿈이 크고 생각의 단위가 달라요. 옆에 있으면 나도 같이 커지는 기분이 드는 남자.' },
+  '병오': { title: '불 위의 불, 세상에서 제일 뜨거운 그 놈', desc: '열정이 넘쳐서 모든 것에 진심이에요. 사랑할 때도 전부를 쏟아붓는 무서운 남자.' },
+  '병신': { title: '태양과 칼, 명석하고 강렬한 그 놈', desc: '머리 좋고 의지도 강해요. 목표가 생기면 무조건 이루고야 마는 집념의 남자.' },
+  '병술': { title: '석양의 태양, 쓸쓸하게 아름다운 그 놈', desc: '감성이 깊고 의리가 있어요. 많은 말 안 해도 곁에 있어주는 것만으로 충분한 남자.' },
+  '정축': { title: '추운 겨울 촛불, 묵묵히 따뜻한 그 놈', desc: '화려하지 않아도 가까이 있으면 따뜻해요. 조용히 당신을 지켜보고 있는 세심한 남자.' },
+  '정묘': { title: '봄밤 촛불, 은은하게 빛나는 그 놈', desc: '부드럽고 예술적인 감성이 있어요. 말 한마디에 감동이 있고 행동에 섬세함이 있는 남자.' },
+  '정사': { title: '불 속의 불, 집요하게 빛나는 그 놈', desc: '한번 빠지면 헤어 나오기 어려운 매력이 있어요. 영리하고 눈치가 빠른, 모든 것을 꿰뚫어 보는 남자.' },
+  '정미': { title: '여름 들판의 촛불, 따뜻하고 고집스러운 그 놈', desc: '배려심이 넘치고 감수성이 풍부해요. 작은 것도 기억하고 챙겨주는, 사랑받기 위해 태어난 남자.' },
+  '정유': { title: '금 위의 불꽃, 예리하고 고혹적인 그 놈', desc: '날카롭고 완벽주의적인데 당신 앞에서만 허술해져요. 그 허술함이 더 매력적인 남자.' },
+  '정해': { title: '깊은 바다의 촛불, 낭만적인 그 놈', desc: '깊이가 있고 철학적이에요. 별 보며 이야기하고 싶은, 함께 있으면 세상이 달라 보이는 남자.' },
+  '무자': { title: '물을 품은 큰 산, 깊고 넓은 그 놈', desc: '속내를 잘 드러내지 않아요. 그런데 한번 드러내면 엄청 깊어요. 오래 볼수록 매력이 커지는 남자.' },
+  '무인': { title: '호랑이가 사는 큰 산, 위엄있는 그 놈', desc: '강단이 있고 결단력이 있어요. 어떤 상황에서도 흔들리지 않는 믿음직한 남자.' },
+  '무진': { title: '산 위의 산, 스케일이 거대한 그 놈', desc: '생각이 크고 포부가 남달라요. 함께 있으면 나도 모르게 꿈이 커지는 남자.' },
+  '무오': { title: '불 위의 산, 뜨겁고 묵직한 그 놈', desc: '열정과 안정감을 동시에 갖고 있어요. 화끈하게 표현하면서도 끝까지 책임지는 남자.' },
+  '무신': { title: '금을 품은 산, 가치 있는 그 놈', desc: '알면 알수록 대단한 사람이에요. 겉으로 드러내지 않지만 속에 엄청난 것을 담고 있는 남자.' },
+  '무술': { title: '불을 간직한 산, 고집스럽게 뜨거운 그 놈', desc: '한번 마음먹으면 끝까지 가요. 사랑도 그렇게 해요. 포기를 모르는 뚝심의 남자.' },
+  '기축': { title: '겨울 논밭, 차곡차곡 쌓아가는 그 놈', desc: '화려하지 않지만 꾸준해요. 매일 조금씩 더 잘해주는, 시간이 지날수록 진가가 드러나는 남자.' },
+  '기묘': { title: '봄 밭 위의 새싹, 성장하는 그 놈', desc: '유연하고 적응력이 뛰어나요. 어디서든 살아남고 어디서든 빛나는 생명력 있는 남자.' },
+  '기사': { title: '뱀이 사는 밭, 영리하고 집요한 그 놈', desc: '겉은 순해 보여도 속은 치밀해요. 전략적이고 영리한데 그걸 표 안 내는 남자.' },
+  '기미': { title: '여름 밭, 풍요롭고 다정한 그 놈', desc: '베풀기를 좋아하고 사람을 편하게 해줘요. 옆에 있으면 자연스럽게 웃게 만드는 남자.' },
+  '기유': { title: '금을 품은 밭, 정교하고 섬세한 그 놈', desc: '작은 것도 놓치지 않는 세심함이 있어요. 완벽주의적이지만 당신 앞에선 좀 허술해지는 남자.' },
+  '기해': { title: '물 위의 밭, 몽환적이고 깊은 그 놈', desc: '현실적인 것 같으면서 낭만이 있어요. 엉뚱한 상상력과 깊은 감수성을 동시에 가진 남자.' },
+  '경자': { title: '물에 씻긴 검, 날카롭고 순수한 그 놈', desc: '직선적이고 솔직해요. 계산 없이 대하는 사람이라 처음엔 당황스러울 수 있지만 믿을 수 있는 남자.' },
+  '경인': { title: '칼을 든 호랑이, 두려움 없는 그 놈', desc: '배짱이 있고 겁이 없어요. 어떤 상황에서도 당당하게 나서는, 곁에 있으면 든든한 남자.' },
+  '경진': { title: '산 속의 원석, 잠재력이 폭발하는 그 놈', desc: '처음엔 평범해 보여도 뚜껑 열면 대단해요. 갈수록 빛나는 남자.' },
+  '경오': { title: '불 속에서 단련된 검, 강렬한 그 놈', desc: '시련을 거쳐 더 강해지는 사람이에요. 거칠어 보여도 당신한테는 한없이 부드러운 남자.' },
+  '경신': { title: '칼 위의 칼, 무결하게 예리한 그 놈', desc: '판단력이 빠르고 실행력이 강해요. 말이 많지 않지만 한마디 한마디가 날카로운 남자.' },
+  '경술': { title: '산 위의 검, 고독하게 빛나는 그 놈', desc: '혼자서도 충분한 사람이에요. 그렇기 때문에 당신을 선택했다는 게 더 특별한 남자.' },
+  '신축': { title: '땅 속의 보석, 가까워야 보이는 그 놈', desc: '처음엔 별로인 것 같은데 알고 보면 대단해요. 가까울수록 빛나는 보석 같은 남자.' },
+  '신묘': { title: '봄 속의 보석, 예쁘고 예리한 그 놈', desc: '외모도 예쁜데 머리도 좋아요. 부드럽게 말하지만 핵심은 정확히 찌르는 남자.' },
+  '신사': { title: '불 속의 보석, 고혹적으로 빛나는 그 놈', desc: '분위기가 있어요. 말하지 않아도 존재감이 느껴지는, 가만히 있어도 시선이 가는 남자.' },
+  '신미': { title: '여름 풀밭의 보석, 아름답고 섬세한 그 놈', desc: '감수성과 예술적 감각이 있어요. 당신을 특별하게 만들어주는 섬세한 눈을 가진 남자.' },
+  '신유': { title: '완성된 보석, 완벽한 그 놈', desc: '깔끔하고 완벽주의적이에요. 자기 관리가 철저하고 당신 앞에서도 항상 최선을 다하는 남자.' },
+  '신해': { title: '바다 속의 보석, 신비롭게 깊은 그 놈', desc: '다가갈수록 더 깊어요. 알면 알수록 모르겠는, 평생 탐구하고 싶어지는 남자.' },
+  '임자': { title: '깊고 깊은 바다, 헤아릴 수 없는 그 놈', desc: '생각이 깊고 말이 없어요. 하지만 한번 말하면 묵직하게 와닿는, 진중한 매력의 남자.' },
+  '임인': { title: '강을 건너는 호랑이, 용감한 그 놈', desc: '도전을 두려워하지 않아요. 새로운 것을 좋아하고 어디서든 적응하는 자유로운 영혼의 남자.' },
+  '임진': { title: '용이 사는 바다, 압도적인 그 놈', desc: '스케일이 달라요. 꿈도 크고 포부도 커요. 옆에 있으면 나도 모르게 내가 작아지는 남자.' },
+  '임오': { title: '불 위의 강물, 뜨겁고 거침없는 그 놈', desc: '열정적이고 감각적이에요. 즉흥적인 것 같지만 감이 정확한, 본능적으로 매력적인 남자.' },
+  '임신': { title: '칼과 강, 논리적으로 강한 그 놈', desc: '머리가 좋고 말도 잘해요. 어떤 상황에서도 정확하게 핵심을 잡는 냉철한 남자.' },
+  '임술': { title: '산에 가로막힌 강, 돌아서 가는 그 놈', desc: '유연하고 지혜로워요. 힘으로 밀지 않고 돌아가는 법을 아는, 어른스러운 남자.' },
+  '계축': { title: '겨울 샘물, 차갑지만 순수한 그 놈', desc: '까다로워 보이지만 순수해요. 한번 마음 열면 맑고 투명한 내면을 보여주는 남자.' },
+  '계묘': { title: '봄비, 촉촉하게 스며드는 그 놈', desc: '강요하지 않고 자연스럽게 스며들어요. 어느 순간 없으면 안 되는 존재가 된 남자.' },
+  '계사': { title: '뱀과 빗물, 신비롭고 예리한 그 놈', desc: '표정 안 내는 것 같아도 다 보고 있어요. 눈치가 빠르고 직관이 날카로운 남자.' },
+  '계미': { title: '여름 소나기, 예측 불가한 그 놈', desc: '기복이 있지만 그게 매력이에요. 지루하지 않고 매일 새로운, 인생을 흥미롭게 만드는 남자.' },
+  '계유': { title: '빗물에 씻긴 보석, 청아한 그 놈', desc: '깨끗하고 단정해요. 흐트러짐 없이 자기를 관리하는, 가까이 있으면 나도 반듯해지는 남자.' },
+  '계해': { title: '바다 위의 빗물, 무한히 깊은 그 놈', desc: '끝이 없어요. 감성도, 생각도, 이야기도. 평생을 함께해도 다 알 수 없는 무한한 남자.' },
+};
+
+// ── 만세력 계산 (순수 JS, 비용 0원) ──
+const CHEONGAN = ['갑','을','병','정','무','기','경','신','임','계'];
+const JIJI = ['자','축','인','묘','진','사','오','미','신','유','술','해'];
+
+function calcSaju(y, m, d) {
+  const date = new Date(y, m-1, d);
+  const base = new Date(1900, 0, 1);
+  const days = Math.floor((date - base) / 86400000);
+  const 일천간 = CHEONGAN[(days + 6) % 10];
+  const 일지지 = JIJI[(days + 2) % 12];
+  return { dayPillar: 일천간 + 일지지, ilju: 일천간 + 일지지 + '일주' };
+}
+
 async function analyzeSaju(ilju, shiju, birth, gender, vibes, custom) {
-  const res = await fetch('/api/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ilju, shiju, birth, gender, vibes, custom })
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || '서버 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
-  }
-
-  const data = await res.json();
-  return data; // { saju, imageUrl }
+  const saju = calcSaju(birth.y, birth.m, birth.d);
+  const key = saju.dayPillar;
+  const data = ILJU_DATA[key] || {
+    title: '운명이 숨겨둔 그 놈',
+    desc: '당신의 팔자에만 존재하는 특별한 그 놈이에요.'
+  };
+  return {
+    saju: { title: data.title, description: data.desc, ilju: saju.ilju },
+    imageUrl: null
+  };
 }
 
 // ── 결과 표시 ──
 function showResult(ilju, saju, imageUrl) {
   document.getElementById('loading').classList.remove('show');
 
-  document.getElementById('result-ilju-text').textContent = ilju.일주;
+  const iljuName = (saju && saju.ilju) ? saju.ilju : ilju.일주;
+  document.getElementById('result-ilju-text').textContent = iljuName;
   document.getElementById('result-title').textContent = saju.title;
   document.getElementById('result-desc').textContent = saju.description;
-  document.getElementById('result-img').src = imageUrl;
+
+  const imgEl = document.getElementById('result-img');
+  if (imageUrl) {
+    imgEl.src = imageUrl;
+    imgEl.style.display = 'block';
+  } else {
+    imgEl.style.display = 'none';
+  }
 
   const randomCount = Math.floor(Math.random() * 200) + 50;
   document.getElementById('ilju-counter-text').textContent =
-    `${ilju.일주} ${randomCount}명이 같은 그 놈을 찾는 중`;
+    iljuName + ' ' + randomCount + '명이 같은 그 놈을 찾는 중';
 
   likeCount = 0;
   liked = false;
@@ -1742,6 +1876,16 @@ function closeModal() {
   document.body.style.overflow = '';
 }
 
+function showQuotaModal() {
+  document.getElementById('quota-modal-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeQuotaModal() {
+  document.getElementById('quota-modal-overlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
 function toggleModalLike() {
   if (currentModalIdx === null) return;
   const state = rankingLikes[currentModalIdx];
@@ -1780,6 +1924,7 @@ function toggleModalLike() {
 // ── 초기화 ──
 window.onload = () => {
   initCalButtons();
+  updateQuotaDisplay();
   animateCount(document.getElementById('cnt-today'), 247);
   animateCount(document.getElementById('cnt-total'), 4821);
   animateCount(document.getElementById('cnt-likes'), 1204);
